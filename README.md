@@ -13,15 +13,6 @@ Não existem requisitos específicos, mas segue abaixo as versões das principai
 
 ## Organização do dataset
 O dataset deve estar no seguinte formato:
-dataset
-    nome_do_dataset
-        classe1
-            imagem1.png
-            imagem2.png
-        classe2
-            imagem1.png
-            imagem2.png
-            imagem3.png
 
 ```bash
 dataset
