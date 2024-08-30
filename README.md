@@ -1,7 +1,7 @@
 # Timm trainer
 Este repositório possui código para realizar o treinamento de modelos de classificação presentes na biblioteca Timm, assim como código para testar e fazer inferências utilizando os modelos treinados.
 
-[Vídeo com todas as explicações]()
+[Vídeo com todas as explicações](https://www.youtube.com/watch?v=WBWh7FINHQU)
 
 ## Pré-requisitos
 Não existem requisitos específicos, mas segue abaixo as versões das principais bibliotecas utilizadas:
