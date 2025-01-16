@@ -3,7 +3,7 @@ Este repositório possui código para realizar o treinamento de modelos de class
 
 [Vídeo com todas as explicações_classificação](https://www.youtube.com/watch?v=WBWh7FINHQU)
 
-[Vídeo com todas as explicações_embedding]()
+[Vídeo com todas as explicações_embedding](https://youtu.be/14i6ufCJloE)
 
 ## Pré-requisitos
 Não existem requisitos específicos, mas segue abaixo as versões das principais bibliotecas utilizadas:
