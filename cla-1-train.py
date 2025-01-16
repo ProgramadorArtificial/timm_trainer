@@ -46,7 +46,7 @@ IS_VALID = True if VAL_FOLDER else False
 SAVE_PATH = 'checkpoints'
 NUM_EPOCHS = 20000
 PATIENCE = 20
-BATCH_SIZE = 512
+BATCH_SIZE = 256
 LR = 0.01
 NUM_WORKERS = 8
 IMAGE_SIZE = 112
@@ -112,8 +112,8 @@ if IS_VALID:
 id_to_label = train_dataset.get_onehot_classes()
 
 # Prepare files and folders to save logging and checkpoints
-save_checkpoint = SaveCheckpoint(SAVE_PATH, MODEL_NAME, RESUME_CHECKPOINT, MEAN, STD, IMAGE_SIZE, LOSS_FUNCTION,
-                                 IS_FLOAT16, id_to_label)
+save_checkpoint = SaveCheckpoint(SAVE_PATH, MODEL_NAME, 'classification', RESUME_CHECKPOINT, MEAN, STD, train_dataset.get_num_classes(),
+                                 IMAGE_SIZE, LOSS_FUNCTION, IS_FLOAT16, id_to_label)
 
 if LOSS_FUNCTION == 'cross_entropy':
     criterion = torch.nn.CrossEntropyLoss()
@@ -121,15 +121,18 @@ else:
     raise ValueError(f'Invalid LOSS_FUNCTION ({LOSS_FUNCTION})')
 
 if not RESUME_CHECKPOINT:
-    model = timm.create_model(MODEL_NAME, pretrained=True)
+    model = timm.create_model(MODEL_NAME, pretrained=True)#, num_classes=train_dataset.get_num_classes())
     in_feat = model.head.fc.in_features
     model.head.fc = torch.nn.Linear(in_feat, train_dataset.get_num_classes())
 if RESUME_CHECKPOINT:
-    if LOSS_FUNCTION in ['cross_entropy'] and model.head.fc.out_features != train_dataset.get_num_classes():
-        logging.warning(f'Detected checkpoint out_features different than num classes.'
-                        f' Changing out_features to {train_dataset.get_num_classes()}')
-        in_feat = model.head.fc.in_features
-        model.head.fc = torch.nn.Linear(in_feat, train_dataset.get_num_classes())
+    try:
+        if LOSS_FUNCTION in ['cross_entropy'] and model.head.fc.out_features != train_dataset.get_num_classes():
+            logging.warning(f'Detected checkpoint out_features different than num classes.'
+                            f' Changing out_features to {train_dataset.get_num_classes()}')
+            in_feat = model.head.fc.in_features
+            model.head.fc = torch.nn.Linear(in_feat, train_dataset.get_num_classes())
+    except Exception as e:
+        raise ValueError(f'Detected checkpoint out_features different than num classes. Tried to change out_features but raised the following error: {e}')
 
 if OPTIMIZER == 'sgd':
     optimizer = optim.SGD(model.parameters(), lr=LR)
@@ -167,20 +170,20 @@ try:
         model.train()
         train_running_loss = 0.0
         train_loader_tqdm = tqdm(train_loader, desc=f'Train: Epoch [{epoch}/{NUM_EPOCHS}]', leave=False)
-        for imgs, labels in train_loader_tqdm:
+        for data in train_loader_tqdm:
             if IS_FLOAT16:
                 with autocast():
-                    outputs = model(imgs.to(device))
+                    outputs = model(data['imgs'][0].to(device))
                     optimizer.zero_grad()
-                    loss = criterion(outputs, labels.to(device))
+                    loss = criterion(outputs, data['label'].to(device))
 
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                outputs = model(imgs.to(device))
+                outputs = model(data['imgs'][0].to(device))
                 optimizer.zero_grad()
-                loss = criterion(outputs, labels.to(device))
+                loss = criterion(outputs, data['label'].to(device))
 
                 loss.backward()
                 optimizer.step()
@@ -203,21 +206,21 @@ try:
             correct = 0
             total = 0
             val_loader_tqdm = tqdm(val_loader, desc=f'Val: Epoch [{epoch + 1}/{NUM_EPOCHS}]', leave=False)
-            for imgs, labels in val_loader_tqdm:
+            for data in val_loader_tqdm:
                 if IS_FLOAT16:
                     with autocast():
                         with torch.inference_mode():
-                            outputs = model(imgs.to(device))
-                            loss = criterion(outputs, labels.to(device))
+                            outputs = model(data['imgs'][0].to(device))
+                            loss = criterion(outputs, data['label'].to(device))
                 else:
                     with torch.inference_mode():
-                        outputs = model(imgs.to(device))
-                        loss = criterion(outputs, labels.to(device))
+                        outputs = model(data['imgs'][0].to(device))
+                        loss = criterion(outputs, data['label'].to(device))
 
                 val_running_loss += loss.item()
                 _, predicted = torch.max(outputs, 1)
-                total += labels.size(0)
-                _, real = torch.max(labels.to(device), 1)
+                total += data['label'].size(0)
+                _, real = torch.max(data['label'].to(device), 1)
                 correct += (predicted == real).sum().item()
                 val_loader_tqdm.set_postfix({'batch_loss': loss.item()})
 

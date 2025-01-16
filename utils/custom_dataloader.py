@@ -1,10 +1,10 @@
 import os
 
 import cv2
+import torch
 import numpy as np
 from PIL import Image
 from sklearn.preprocessing import OneHotEncoder
-import torch
 from torch.utils.data import Dataset
 
 
@@ -79,7 +79,75 @@ class CustomDataset(Dataset):
 
         if self.return_labels_onehot:
             label = self.onehot.transform([[label]])
-            return img, torch.tensor(label).squeeze()
+            return {'imgs': [img], 'label': torch.tensor(label).squeeze()}
         else:
             label = self.label_to_id[label]
-            return img, torch.tensor(label)
+            return {'imgs': [img], 'label': torch.tensor(label)}
+
+
+class DatasetContrastiveLoss(CustomDataset):
+    """
+    Dataset to load images in Contrastive loss format (embedding models)
+    """
+    def __init__(self, dataset_path, transform=None, load_images_memory=False, same_class_probability=0.5):
+        super(DatasetContrastiveLoss, self).__init__(dataset_path, transform=transform, load_images_memory=load_images_memory)
+        self.same_class_probability = same_class_probability
+
+    def __getitem__(self, idx):
+        anchor_img = self.get_image(idx)
+        anchor_label = self.labels[idx]
+
+        # Get same class
+        if np.random.uniform() <= self.same_class_probability:
+            idxes_class = [idx]
+            # If there are more than one image of the class get another image otherwise get the same
+            if len(self.label_to_idx_images[anchor_label]) > 1:
+                idxes_class = self.label_to_idx_images[anchor_label].copy()
+                idxes_class.remove(idx)
+            second_img = self.get_image(np.random.choice(idxes_class))
+            is_different_class = 0.0
+        # Get different class
+        else:
+            different_classes = list(self.label_to_idx_images.keys())
+            different_classes.remove(anchor_label)
+            second_label = np.random.choice(different_classes)
+            second_img = self.get_image(np.random.choice(self.label_to_idx_images[second_label]))
+            is_different_class = 1.0
+
+        if self.transform:
+            anchor_img = self.transform(anchor_img)
+            second_img = self.transform(second_img)
+
+        return {'imgs': [anchor_img, second_img], 'label': torch.tensor(is_different_class)}
+
+
+class DatasetTripletLoss(CustomDataset):
+    """
+    Dataset to load images in Triplet loss format (embedding models)
+    """
+    def __getitem__(self, idx):
+        anchor_img = self.get_image(idx)
+        anchor_label = self.labels[idx]
+
+        # Get same class
+        idxes_class = [idx]
+        # If there are more than one image of the class get another image otherwise get the same
+        if len(self.label_to_idx_images[anchor_label]) > 1:
+            idxes_class = self.label_to_idx_images[anchor_label].copy()
+            idxes_class.remove(idx)
+        p = np.random.choice(idxes_class)
+        positive_img = self.get_image(p)
+
+        # Get different class
+        negative_classes = list(self.label_to_idx_images.keys()).copy()
+        negative_classes.remove(anchor_label)
+        negative_label = np.random.choice(negative_classes)
+        n = np.random.choice(self.label_to_idx_images[negative_label])
+        negative_img = self.get_image(n)
+
+        if self.transform:
+            anchor_img = self.transform(anchor_img)
+            positive_img = self.transform(positive_img)
+            negative_img = self.transform(negative_img)
+
+        return {'imgs': [anchor_img, positive_img, negative_img], 'label': []}

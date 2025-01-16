@@ -29,8 +29,8 @@ def calculate_mean_std(folder_path, image_size, batch_size=128):
 
     # loop through images
     nb_samples = 0
-    for imgs, _ in tqdm(loader):
-        input = imgs
+    for data in tqdm(loader):
+        input = data['imgs'][0]
         # [batch_size x 3 x image_size x image_size]
         psum += input.sum(axis=[0, 2, 3])
         psum_sq += (input ** 2).sum(axis=[0, 2, 3])
@@ -47,7 +47,7 @@ def calculate_mean_std(folder_path, image_size, batch_size=128):
     return total_mean.numpy().tolist(), total_std.numpy().tolist()
 
 
-def train_transforms(mean, std, image_size):
+def train_transforms(mean, std, image_size, augmentation_name='default'):
     """
     Transforms with augmentation, used for training
 
@@ -55,32 +55,62 @@ def train_transforms(mean, std, image_size):
         mean (list): Normalize mean value
         std (list): Normalize standard value
         image_size (int): Size of the images used for training
+        augmentation_name (str): Augmentation name to use
     """
-    if mean and std:
-        return T.Compose([
-            T.RandomHorizontalFlip(p=0.3),
-            T.RandomApply(torch.nn.ModuleList(
-                [T.ColorJitter(brightness=(0.6, 1.4), contrast=(0.6, 1.4), saturation=(0.6, 1.6), hue=(-0.05, 0.05)),
-                 T.GaussianBlur(3, 7),
-                 T.RandomRotation(4),
-                 T.RandomAdjustSharpness(3),
-                 ]), p=0.4),
-            T.Resize((image_size, image_size)),
-            T.ToTensor(),
-            T.Normalize(mean=mean, std=std),
-        ])
+    if augmentation_name == 'default':
+        if mean and std:
+            return T.Compose([
+                T.RandomHorizontalFlip(p=0.3),
+                T.RandomApply(torch.nn.ModuleList(
+                    [T.ColorJitter(brightness=(0.6, 1.4), contrast=(0.6, 1.4), saturation=(0.6, 1.6), hue=(-0.05, 0.05)),
+                     T.GaussianBlur(3, 7),
+                     T.RandomRotation(4),
+                     T.RandomAdjustSharpness(3),
+                     ]), p=0.4),
+                T.Resize((image_size, image_size)),
+                T.ToTensor(),
+                T.Normalize(mean=mean, std=std),
+            ])
+        else:
+            return T.Compose([
+                T.RandomHorizontalFlip(p=0.3),
+                T.RandomApply(torch.nn.ModuleList(
+                    [T.ColorJitter(brightness=(0.6, 1.4), contrast=(0.6, 1.4), saturation=(0.6, 1.6), hue=(-0.05, 0.05)),
+                     T.GaussianBlur(3, 7),
+                     T.RandomRotation(4),
+                     T.RandomAdjustSharpness(3),
+                     ]), p=0.4),
+                T.Resize((image_size, image_size)),
+                T.ToTensor(),
+            ])
+    elif augmentation_name == 'embedding':
+        if mean and std:
+            return T.Compose([
+                T.RandomHorizontalFlip(p=0.3),
+                T.RandomApply(torch.nn.ModuleList(
+                    [T.ColorJitter(brightness=[1.0, 1.2]),
+                     T.GaussianBlur(1, 5),
+                     T.RandomRotation(4),
+                     T.RandomAdjustSharpness(1),
+                     ]), p=0.25),
+                T.Resize((image_size, image_size)),
+                T.ToTensor(),
+                T.Normalize(mean=mean, std=std),
+            ])
+        else:
+            return T.Compose([
+                T.RandomHorizontalFlip(p=0.3),
+                T.RandomApply(torch.nn.ModuleList(
+                    [T.ColorJitter(brightness=[1.0, 1.2]),
+                     T.GaussianBlur(1, 5),
+                     T.RandomRotation(4),
+                     T.RandomAdjustSharpness(1),
+                     ]), p=0.25),
+                T.Resize((image_size, image_size)),
+                T.ToTensor(),
+            ])
     else:
-        return T.Compose([
-            T.RandomHorizontalFlip(p=0.3),
-            T.RandomApply(torch.nn.ModuleList(
-                [T.ColorJitter(brightness=(0.6, 1.4), contrast=(0.6, 1.4), saturation=(0.6, 1.6), hue=(-0.05, 0.05)),
-                 T.GaussianBlur(3, 7),
-                 T.RandomRotation(4),
-                 T.RandomAdjustSharpness(3),
-                 ]), p=0.4),
-            T.Resize((image_size, image_size)),
-            T.ToTensor(),
-        ])
+        raise ValueError(f'Invalid augmentation_name {augmentation_name}')
 
 
 def default_transforms(mean, std, image_size):
